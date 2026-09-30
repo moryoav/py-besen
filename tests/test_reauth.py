@@ -4,10 +4,11 @@ import asyncio
 import logging
 from unittest.mock import AsyncMock, Mock, PropertyMock, patch
 
+import pytest
+
 from besen.client import BesenClient
 from besen.exceptions import InvalidAuth
 from besen.models import BesenData
-import pytest
 
 
 @pytest.fixture

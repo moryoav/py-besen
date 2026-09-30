@@ -9,6 +9,9 @@ import logging
 from types import SimpleNamespace
 from typing import Any, cast
 
+from bleak.backends.device import BLEDevice
+import pytest
+
 from besen import client as client_module
 from besen.client import BesenClient
 from besen.const import (
@@ -24,8 +27,6 @@ from besen.const import (
 from besen.exceptions import CannotConnect, CommandFailed, InvalidAuth, ProtocolError
 from besen.models import BoardRevision, CharacteristicPair
 from besen.protocol import PARSERS, build_command, parse_packet
-from bleak.backends.device import BLEDevice
-import pytest
 
 EVSE_IDENTIFIER = "8949281891483449"
 

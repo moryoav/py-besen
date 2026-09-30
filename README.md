@@ -1,13 +1,20 @@
 # Besen Python library
 
+[![PyPI][pypi-badge]][pypi-url]
+[![Python versions][python-badge]][pypi-url]
+[![CI][ci-badge]][ci-url]
+[![License][license-badge]][license-url]
+
 `besen` is an async Python client for Besen EV chargers over Bluetooth Low Energy.
 It provides connection management, PIN authentication, protocol parsing, typed
-state models, and charger commands. The library lives in `src/besen`; the Home
-Assistant integration is a separate consumer in `custom_components/besen`.
+state models, and charger commands.
 
-For Home Assistant installation, including the choice between the built-in and
-HACS versions, see the [project README](../README.md#installation). Home Assistant
-installs the required library automatically.
+Home Assistant users don't need to install this library. The built-in
+[Besen integration](https://www.home-assistant.io/integrations/besen) and the
+[HACS custom integration](https://github.com/moryoav/besen) install it
+automatically. See the
+[integration README](https://github.com/moryoav/besen#installation) for the choice
+between them.
 
 ## Installation
 
@@ -132,7 +139,8 @@ manually with appropriate supervision before using them in an automation.
 - `await client.async_refresh_config()`
 
 Not every library control is exposed as a Home Assistant entity. See the
-[README feature list](../README.md#features) for the integration's capabilities.
+[integration feature list](https://github.com/moryoav/besen#features) for its
+capabilities.
 
 ## State model
 
@@ -217,5 +225,19 @@ current limits appropriate for the installation independently of the software.
 
 The Python library is MIT-licensed, with protocol work based on
 [slespersen/evseMQTT](https://github.com/slespersen/evseMQTT). See
-[LICENSE](../LICENSE) and [NOTICE.md](../NOTICE.md). The Core-derived Home Assistant
-integration and tests use Apache 2.0; their license is separate from this library.
+[LICENSE][license-url] and
+[NOTICE.md](https://github.com/moryoav/py-besen/blob/main/NOTICE.md).
+
+## Development
+
+See [CONTRIBUTING.md](https://github.com/moryoav/py-besen/blob/main/CONTRIBUTING.md)
+for the development setup, checks, and release process. Release notes are in
+[CHANGELOG.md](https://github.com/moryoav/py-besen/blob/main/CHANGELOG.md).
+
+[pypi-badge]: https://img.shields.io/pypi/v/besen?style=flat-square&label=PyPI
+[pypi-url]: https://pypi.org/project/besen/
+[python-badge]: https://img.shields.io/pypi/pyversions/besen?style=flat-square
+[ci-badge]: https://img.shields.io/github/actions/workflow/status/moryoav/py-besen/ci.yml?branch=main&style=flat-square&label=CI
+[ci-url]: https://github.com/moryoav/py-besen/actions/workflows/ci.yml
+[license-badge]: https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square
+[license-url]: https://github.com/moryoav/py-besen/blob/main/LICENSE

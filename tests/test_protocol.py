@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from besen.exceptions import ProtocolError
 from besen.protocol import (
     PARSERS,
@@ -32,7 +34,6 @@ from besen.protocol import (
     safe_decode,
     timestamp_bytes,
 )
-import pytest
 
 
 def test_build_and_parse_command() -> None:

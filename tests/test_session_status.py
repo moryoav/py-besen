@@ -2,6 +2,8 @@
 
 from datetime import UTC, datetime, timedelta
 
+import pytest
+
 from besen.exceptions import ProtocolError
 from besen.models import ChargeStatus
 from besen.protocol import (
@@ -11,7 +13,6 @@ from besen.protocol import (
     parse_single_ac_charging_status,
     timestamp_bytes,
 )
-import pytest
 
 
 @pytest.mark.parametrize("command", [5, 6])
