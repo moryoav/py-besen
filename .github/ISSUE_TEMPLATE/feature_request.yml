@@ -1,0 +1,48 @@
+name: Feature request
+description: Suggest a library improvement.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What do you want to do with the charger that the library doesn't support today?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the behavior or API you would like.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - BLE connection handling
+        - Charger login or PIN
+        - Protocol parsing or state values
+        - Charger commands
+        - Device compatibility
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Safety and reliability considerations
+      description: Note any electrical safety, charger behavior, or failure-mode concerns.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds or other designs you considered.
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Add protocol captures, examples, or links if useful. Remove private data first.

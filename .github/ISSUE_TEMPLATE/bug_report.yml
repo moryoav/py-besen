@@ -1,0 +1,74 @@
+name: Bug report
+description: Report a library problem that is not working as expected.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. For Home Assistant entity, setup, or HACS problems, use the [integration repository](https://github.com/moryoav/besen/issues) instead. Please remove charger PINs, private BLE addresses, private logs, and Wi-Fi details before submitting.
+  - type: input
+    id: version
+    attributes:
+      label: Library version
+      description: The `besen` version you are using.
+      placeholder: "0.4.8"
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version and operating system
+      placeholder: "Python 3.13 on Ubuntu 24.04"
+    validations:
+      required: true
+  - type: input
+    id: bluetooth
+    attributes:
+      label: Bluetooth adapter or proxy
+      description: The adapter, backend, or proxy the client connects through, if known.
+  - type: input
+    id: charger
+    attributes:
+      label: Charger model or advertised name
+      description: Include model, board revision, phase count, or advertised name if known. Do not include a private BLE address.
+      placeholder: "Besen BS20 / ACP#..."
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - BLE connection or reconnects
+        - Charger login or PIN
+        - Protocol parsing or state values
+        - Charger commands
+        - Packaging or installation
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What did you do? A short script is ideal.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste relevant debug logs from the `besen` logger with sensitive information removed.
+      render: text

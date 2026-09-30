@@ -1,0 +1,62 @@
+name: Device compatibility report
+description: Share results from a Besen-compatible charger variant.
+title: "[Compatibility]: "
+labels: ["compatibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when reporting a charger variant that works, partly works, or does not work with the library. Remove charger PINs, private BLE addresses, private logs, and Wi-Fi details before submitting.
+  - type: input
+    id: charger
+    attributes:
+      label: Charger model
+      description: Include the brand/model printed on the charger and the phase count if known.
+      placeholder: "Besen BS20"
+    validations:
+      required: true
+  - type: input
+    id: advertised_name
+    attributes:
+      label: Advertised BLE name
+      description: Include only the non-sensitive advertised name pattern. Do not include a private BLE address.
+      placeholder: "ACP#..."
+  - type: dropdown
+    id: result
+    attributes:
+      label: Result
+      options:
+        - Works
+        - Partly works
+        - Does not work
+        - Not sure yet
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Library version
+      placeholder: "0.4.8"
+    validations:
+      required: true
+  - type: input
+    id: bluetooth
+    attributes:
+      label: Bluetooth adapter or proxy
+      description: The adapter, backend, or proxy the client connects through, if known.
+  - type: textarea
+    id: working
+    attributes:
+      label: What works?
+      description: List connection, login, state values, and commands that work.
+  - type: textarea
+    id: not_working
+    attributes:
+      label: What does not work?
+      description: List failures, incorrect values, or connection problems.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Add relevant debug logs with sensitive data removed.
+      render: text
