@@ -9,12 +9,9 @@
 It provides connection management, PIN authentication, protocol parsing, typed
 state models, and charger commands.
 
-Home Assistant users don't need to install this library. The built-in
-[Besen integration](https://www.home-assistant.io/integrations/besen) and the
-[HACS custom integration](https://github.com/moryoav/besen) install it
-automatically. See the
-[integration README](https://github.com/moryoav/besen#installation) for the choice
-between them.
+Home Assistant users don't need to install it; the
+[Besen integration](https://www.home-assistant.io/integrations/besen) does that
+automatically.
 
 ## Installation
 
@@ -137,10 +134,6 @@ manually with appropriate supervision before using them in an automation.
 - `await client.async_set_language(language)`
 - `await client.async_set_device_name(name)`
 - `await client.async_refresh_config()`
-
-Not every library control is exposed as a Home Assistant entity. See the
-[integration feature list](https://github.com/moryoav/besen#features) for its
-capabilities.
 
 ## State model
 
