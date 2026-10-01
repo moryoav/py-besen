@@ -19,10 +19,6 @@ Up to version 0.4.8, the library was developed in [moryoav/besen](https://github
 - The charger's "reservation successful" reply to a start request counts as acceptance. It was previously unmapped and would have raised `CommandFailed`.
 - A start request without the new arguments is unchanged: it starts now, with no time limit. Stopping, clock synchronization, and the state model are unchanged.
 
-### Updating
-
-- Existing calls behave as before. The new arguments follow the protocol as documented by [evsemaster](https://github.com/RafaelSchridi/evsemaster) and [emproto](https://github.com/johnwoo-nl/emproto), and have not been verified on a physical charger yet.
-
 ## [0.4.8.post1] - 2026-10-01
 
 ### Changed
