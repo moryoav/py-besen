@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta, timezone
+
 import pytest
 
 from besen.exceptions import ProtocolError
@@ -298,6 +300,11 @@ def test_protocol_scalar_helpers() -> None:
     assert get_phases(1) == 1
     assert safe_decode(b"Garage\x00\x00") == "Garage"
     assert len(timestamp_bytes()) == 4
+    # 2026-10-01 12:00 UTC, whatever time zone the caller expresses it in.
+    assert timestamp_bytes(datetime(2026, 10, 1, 12, tzinfo=UTC)) == [106, 190, 75, 64]
+    assert timestamp_bytes(
+        datetime(2026, 10, 1, 20, tzinfo=timezone(timedelta(hours=8)))
+    ) == [106, 190, 75, 64]
     assert len(generate_charge_id()) == 16
     assert bytes_to_timestamp(0)
     assert isinstance(bytes_to_timezoned_epoch(0), int)
@@ -363,6 +370,9 @@ def test_config_and_command_parsers() -> None:
         "error_reason": "No error",
         "output_amps": 16,
     }
+    assert parse_charge_start(b"\x01\x01\x00\x00\x10", "")["reservation_result"] == (
+        "Reservation successful"
+    )
     assert parse_charge_stop(b"\x01\x0b\x00", "") == {
         "line_id": 1,
         "stop_result": "App stop",

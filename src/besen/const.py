@@ -1,5 +1,6 @@
 """Constants for the Besen client library."""
 
+from datetime import timedelta
 from typing import Final
 
 DEFAULT_PIN: Final = "123456"
@@ -33,6 +34,11 @@ CLOCK_SYNC_INTERVAL: Final = 3600
 MIN_CHARGE_AMPS: Final = 6
 FALLBACK_MAX_CHARGE_AMPS: Final = 32
 DEFAULT_CHARGE_AMPS: Final = 6
+
+# The firmware rejects a scheduled start more than 24 hours ahead, and 0xFFFF
+# in the duration field means no time limit.
+MAX_START_DELAY: Final = timedelta(hours=24)
+MAX_CHARGE_DURATION_MINUTES: Final = 0xFFFE
 
 ERRORS: Final = {
     0: "Relay Stick Error",
@@ -202,6 +208,7 @@ CHARGE_START_ERROR: Final = {
 
 CHARGE_START_RESERVATION: Final = {
     0: "No error",
+    1: "Reservation successful",
     2: "Reservation failed, the system does not support reservation",
     3: "Reservation failed, the reservation time is more than 24 hours",
     4: "Reservation failed, the reservation time is earlier than the current time",
