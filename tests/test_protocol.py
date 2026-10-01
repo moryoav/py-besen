@@ -197,7 +197,7 @@ def test_parse_single_ac_status_three_phase() -> None:
     assert status["outer_temp"] == 30.0
     assert status["plug_state"] == "Connected Locked"
     assert status["output_state"] == "Charging"
-    assert status["current_state"] == "Completed"
+    assert status["current_state"] == "Charging"
     assert status["charging_status"] == "Finish Charging"
     assert status["charger_status"] is True
     assert status["l2_voltage"] == 231.0
@@ -337,6 +337,31 @@ def test_charging_status_mapping(
     """Charging status maps plug/current states."""
 
     assert charging_status(plug_state, current_state) == expected
+
+
+@pytest.mark.parametrize(
+    ("code", "name"),
+    [
+        (0, "Unknown 0"),
+        (1, "Fault"),
+        (10, "Waiting for swipe"),
+        (11, "Waiting for button"),
+        (12, "Not Connected"),
+        (13, "Ready to charge"),
+        (14, "Charging"),
+        (15, "Completed"),
+        (17, "Completed Full Charge"),
+        (20, "Charging Reservation"),
+    ],
+)
+def test_current_state_names(code: int, name: str) -> None:
+    """The current state is named after the code the charger reports."""
+
+    data = bytearray(25)
+    data[18] = 1
+    data[20] = code
+
+    assert parse_single_ac_status(bytes(data), "")["current_state"] == name
 
 
 def test_config_and_command_parsers() -> None:

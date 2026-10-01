@@ -43,6 +43,7 @@ async def charging_client(
     client = _client(fake, monkeypatch)
     await client.async_start()
     monkeypatch.setattr(client, "_schedule_reconnect", lambda: None)
+    client._set_state(config=client.state.config.updated(charge_amps=16))
     fake.write_started = asyncio.Event()
     try:
         yield client, fake
@@ -216,6 +217,127 @@ async def test_charge_start_rechecks_start_after_queueing(
     with pytest.raises(ValueError, match="in the future"):
         await request
     assert _written_commands(fake)[32775] == 0
+
+
+async def test_charge_start_asks_for_unknown_charge_amps(
+    charging_client: tuple[BesenClient, _FakeBleakClient],
+) -> None:
+    """A start without a known charging current asks the charger for it."""
+
+    client, fake = charging_client
+    client._set_state(config=client.state.config.updated(charge_amps=None))
+    asked = _written_commands(fake)[33031]
+    request = asyncio.create_task(client.async_start_charging())
+    await _wait_for_write(fake, 33031, asked + 1)
+    assert _written_commands(fake)[32775] == 0
+    await client._async_handle_packet(263, bytes([2, 10]), EVSE_IDENTIFIER)
+    await _wait_for_write(fake, 32775)
+    assert parse_packet(fake.writes[-1][1]).data[46] == 10
+    await client._async_handle_packet(7, bytes([2, 0, 1, 0, 10]), EVSE_IDENTIFIER)
+    await request
+
+
+async def test_charge_start_never_guesses_charge_amps(
+    charging_client: tuple[BesenClient, _FakeBleakClient],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A charger that does not report its charging current is not started."""
+
+    client, fake = charging_client
+    client._set_state(config=client.state.config.updated(charge_amps=None))
+    monkeypatch.setattr(client_module, "STATE_UPDATE_TIMEOUT", 0.02)
+    asked = _written_commands(fake)[33031]
+    with pytest.raises(CommandFailed, match="has not reported its charging current"):
+        await client.async_start_charging()
+    assert _written_commands(fake)[33031] == asked + 1
+    assert _written_commands(fake)[32775] == 0
+
+
+@pytest.mark.parametrize(("charge_amps", "requests"), [(None, 1), (16, 0)])
+async def test_heartbeat_asks_for_unknown_charge_amps(
+    charging_client: tuple[BesenClient, _FakeBleakClient],
+    charge_amps: int | None,
+    requests: int,
+) -> None:
+    """Each heartbeat asks again for a charging current that is still unknown."""
+
+    client, fake = charging_client
+    client._set_state(config=client.state.config.updated(charge_amps=charge_amps))
+    asked = _written_commands(fake)[33031]
+    await client._async_handle_packet(3, b"", EVSE_IDENTIFIER)
+    assert _written_commands(fake)[32771] == 1
+    assert _written_commands(fake)[33031] == asked + requests
+
+
+@pytest.mark.parametrize("cleared", [True, False], ids=["cleared", "not-cleared"])
+@pytest.mark.parametrize("state", ["Completed", "Completed Full Charge"])
+async def test_charge_start_clears_finished_session(
+    charging_client: tuple[BesenClient, _FakeBleakClient],
+    monkeypatch: pytest.MonkeyPatch,
+    state: str,
+    cleared: bool,
+) -> None:
+    """An immediate start first stops a finished session, then sends the start."""
+
+    client, fake = charging_client
+    client._set_state(charge=client.state.charge.updated(current_state=state))
+    if not cleared:
+        monkeypatch.setattr(client_module, "STATE_UPDATE_TIMEOUT", 0.02)
+    request = asyncio.create_task(client.async_start_charging(16))
+    await _wait_for_write(fake, 32776)
+    assert _written_commands(fake)[32775] == 0
+    if cleared:
+        client._set_state(
+            charge=client.state.charge.updated(current_state="Ready to charge")
+        )
+    await _wait_for_write(fake, 32775)
+    await client._async_handle_packet(7, bytes([2, 0, 1, 0, 16]), EVSE_IDENTIFIER)
+    await request
+
+
+async def test_charge_start_uses_current_set_while_clearing(
+    charging_client: tuple[BesenClient, _FakeBleakClient],
+) -> None:
+    """A charging current changed while a finished session clears is kept."""
+
+    client, fake = charging_client
+    client._set_state(charge=client.state.charge.updated(current_state="Completed"))
+    request = asyncio.create_task(client.async_start_charging())
+    await _wait_for_write(fake, 32776)
+    client._set_state(
+        config=client.state.config.updated(charge_amps=10),
+        charge=client.state.charge.updated(current_state="Ready to charge"),
+    )
+    await _wait_for_write(fake, 32775)
+    assert parse_packet(fake.writes[-1][1]).data[46] == 10
+    await client._async_handle_packet(7, bytes([2, 0, 1, 0, 10]), EVSE_IDENTIFIER)
+    await request
+
+
+@pytest.mark.parametrize(
+    ("state", "delay"),
+    [
+        ("Completed", timedelta(minutes=10)),
+        ("Ready to charge", None),
+        ("Charging", None),
+        ("Charging Reservation", None),
+    ],
+    ids=["scheduled-after-finished", "ready", "charging", "reserved"],
+)
+async def test_charge_start_sends_no_stop_otherwise(
+    charging_client: tuple[BesenClient, _FakeBleakClient],
+    state: str,
+    delay: timedelta | None,
+) -> None:
+    """A scheduled start and a start in any other state never send a stop."""
+
+    client, fake = charging_client
+    client._set_state(charge=client.state.charge.updated(current_state=state))
+    start = None if delay is None else datetime.now(UTC) + delay
+    request = await _start_charging_request(client, fake, start=start)
+    await client._async_handle_packet(7, bytes([2, 0, 1, 0, 16]), EVSE_IDENTIFIER)
+    await request
+    assert _written_commands(fake)[32776] == 0
 
 
 async def test_charge_start_ignores_unrelated_replies(
@@ -395,13 +517,18 @@ async def test_charge_start_abandons_session(
 async def test_charge_start_requires_authentication(
     charging_client: tuple[BesenClient, _FakeBleakClient],
 ) -> None:
-    """A request cannot be sent during login or shutdown."""
+    """Nothing is sent during login or shutdown, not even the preparing commands."""
 
     client, fake = charging_client
-    client._set_state(authenticated=False)
+    client._set_state(
+        authenticated=False,
+        config=client.state.config.updated(charge_amps=None),
+        charge=client.state.charge.updated(current_state="Completed"),
+    )
+    written = _written_commands(fake)
     with pytest.raises(CommandFailed, match="not authenticated"):
         await client.async_start_charging()
-    assert _written_commands(fake)[32775] == 0
+    assert _written_commands(fake) == written
 
 
 async def test_charge_start_timeout_before_write_preserves_connection(
@@ -642,6 +769,18 @@ def _written_commands(fake_client: _FakeBleakClient) -> Counter[int]:
     return Counter(parse_packet(write[1]).command for write in fake_client.writes)
 
 
+async def _wait_for_write(
+    fake_client: _FakeBleakClient, command: int, count: int = 1
+) -> None:
+    """Wait until a protocol command has been written to a fake charger."""
+
+    assert fake_client.write_started is not None
+    async with asyncio.timeout(1):
+        while _written_commands(fake_client)[command] < count:
+            fake_client.write_started.clear()
+            await fake_client.write_started.wait()
+
+
 def _client(
     fake_client: _FakeBleakClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -776,7 +915,7 @@ async def test_client_public_commands_and_listeners(
     remove_listener = client.add_listener(lambda data: updates.append(data.available))
 
     await client.async_start()
-    await client.async_start_charging()
+    await client.async_start_charging(16)
     await client.async_stop_charging()
     await client.async_set_lcd_brightness(150)
     await client.async_set_temperature_unit("Fahrenheit")

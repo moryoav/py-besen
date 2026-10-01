@@ -163,6 +163,25 @@ The charger measures the start time against its own clock. The client sets that
 clock on every login and at most once an hour afterwards, so keep
 `sync_clock=True` when you schedule sessions.
 
+On a Besen BS20 the charger holds one schedule at a time and accepts it with or
+without a vehicle connected. It rejects a new start while a schedule is pending
+or a session is charging, and `async_stop_charging()` cancels a pending schedule.
+
+### Charging current and finished sessions
+
+A start request carries a charging current, and the charger keeps it as its
+configured current afterwards. When you omit `amps`, the client sends the
+current the charger reported. If the charger has not reported one, the client
+asks for it and raises `CommandFailed` when no answer arrives within 5 seconds.
+It never falls back to the charger's maximum. While the value is unknown, the
+client also asks again on every charger heartbeat.
+
+After a session has finished, the charger rejects an immediate start until it
+receives a stop. A start without a start time therefore sends that stop first
+when `BesenData.charge.current_state` is `Completed` or
+`Completed Full Charge`, and waits up to 5 seconds for the charger to leave that
+state. Scheduled starts are accepted in that state and send no stop.
+
 ## State model
 
 State updates are immutable dataclasses. Every listener receives a full `BesenData`

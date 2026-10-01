@@ -18,7 +18,6 @@ from .const import (
     CLOCK_SYNC_INTERVAL,
     CONNECT_ATTEMPTS,
     CONNECT_TIMEOUT,
-    DEFAULT_CHARGE_AMPS,
     DISCONNECT_TIMEOUT,
     FALLBACK_MAX_CHARGE_AMPS,
     LANGUAGES,
@@ -36,6 +35,7 @@ from .const import (
     REV_READ_UUID,
     REV_WRITE_UUID,
     SILENT_LOGIN_TIMEOUT,
+    STATE_UPDATE_TIMEOUT,
     STOP_REASON,
     TEMPERATURE_UNIT_ALIASES,
     TEMPERATURE_UNITS,
@@ -62,6 +62,9 @@ BLEDeviceProvider = Callable[[], BLEDevice | None]
 StateListener = Callable[[BesenData], None]
 
 USER_ID = [101, 118, 115, 101, 77, 81, 84, 84, 0, 0, 0, 0, 0, 0, 0, 0]
+
+# The charger rejects an immediate start in these states until it gets a stop.
+FINISHED_STATES = ("Completed", "Completed Full Charge")
 
 
 def _validate_start(start: datetime | None) -> None:
@@ -241,6 +244,13 @@ class BesenClient:
             )
 
         async with self._charge_start_lock:
+            if self._stopping or not self._state.authenticated:
+                raise CommandFailed("Charger is not authenticated")
+            if start is None:
+                await self._async_clear_finished_session()
+            # Read the current last, so a change made while waiting is kept.
+            if amps is None:
+                amps = await self._async_configured_charge_amps()
             # An earlier request may have held the lock past the start time.
             _validate_start(start)
             response: asyncio.Future[dict[str, Any] | None] = (
@@ -811,6 +821,9 @@ class BesenClient:
             await self._send_heartbeat()
             if self._state.authenticated:
                 await self._async_sync_clock_if_due()
+                if self._state.config.charge_amps is None:
+                    # The reply to the login-time request can get lost.
+                    await self.async_refresh_charge_amps()
             return
 
         if command in (4, 5, 6, 13):
@@ -959,17 +972,54 @@ class BesenClient:
             amps,
         ]
 
-    def _clamp_amps(self, amps: int | None) -> int:
+    def _clamp_amps(self, amps: int) -> int:
         """Clamp amps to charger limits."""
 
-        requested = int(
-            amps
-            or self._state.config.charge_amps
-            or self._state.info.output_max_amps
-            or DEFAULT_CHARGE_AMPS
-        )
         max_amps = self._state.info.output_max_amps or FALLBACK_MAX_CHARGE_AMPS
-        return max(MIN_CHARGE_AMPS, min(max_amps, requested))
+        return max(MIN_CHARGE_AMPS, min(max_amps, int(amps)))
+
+    async def _async_configured_charge_amps(self) -> int:
+        """Return the charger's own charging current, asking for it while unknown."""
+
+        if self._state.config.charge_amps is None:
+            await self.async_refresh_charge_amps()
+            await self._async_wait_for_state(
+                lambda state: state.config.charge_amps is not None
+            )
+        amps = self._state.config.charge_amps
+        if amps is None:
+            # Never guess: a start request also stores its current on the charger.
+            raise CommandFailed("The charger has not reported its charging current")
+        return amps
+
+    async def _async_clear_finished_session(self) -> None:
+        """Stop a finished session, which the charger requires before a new start."""
+
+        if self._state.charge.current_state not in FINISHED_STATES:
+            return
+        await self.async_stop_charging()
+        await self._async_wait_for_state(
+            lambda state: state.charge.current_state not in FINISHED_STATES
+        )
+
+    async def _async_wait_for_state(self, matches: Callable[[BesenData], bool]) -> None:
+        """Wait a bounded time for the charger state to match."""
+
+        if matches(self._state):
+            return
+        matched = asyncio.Event()
+
+        def _listener(state: BesenData) -> None:
+            if matches(state):
+                matched.set()
+
+        remove_listener = self.add_listener(_listener)
+        try:
+            with suppress(TimeoutError):
+                async with asyncio.timeout(STATE_UPDATE_TIMEOUT):
+                    await matched.wait()
+        finally:
+            remove_listener()
 
     def _update_info(self, **values: Any) -> None:
         """Merge charger info values into state."""
