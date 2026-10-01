@@ -27,6 +27,7 @@ CONNECT_TIMEOUT: Final = 65.0
 CONNECT_ATTEMPTS: Final = 5
 DISCONNECT_TIMEOUT: Final = 10.0
 CHARGE_START_TIMEOUT: Final = 10.0
+STATE_UPDATE_TIMEOUT: Final = 5.0
 MESSAGE_TIMEOUT: Final = 45
 RECONNECT_DELAY: Final = 5
 CLOCK_SYNC_INTERVAL: Final = 3600
@@ -92,6 +93,7 @@ OUTPUT_STATE: Final = [
 ]
 
 CURRENT_STATE: Final = [
+    "Unknown 0",
     "Fault",
     "Charging Fault 1",
     "Charging Fault 2",

@@ -6,6 +6,18 @@ This project follows semantic versioning where practical. Release tags use a `v`
 
 Up to version 0.4.8, the library was developed in [moryoav/besen](https://github.com/moryoav/besen) together with the Home Assistant custom integration, and versions 0.2.0 to 0.2.2 were published as `besen-bs20`. Some earlier entries also describe integration changes. The integration's changelog continues in that repository.
 
+## [Unreleased]
+
+### Fixed
+
+- A start request without `amps` no longer falls back to the charger's maximum current when the charger has not reported its charging current. The client asks the charger for it and raises `CommandFailed` if no answer arrives within 5 seconds. A start request also stores its current on the charger, so the old fallback could raise the configured current to the maximum.
+- `ChargeStatus.current_state` was one state ahead: a disconnected plug read `Ready to charge`, an active session read `Completed`, and a scheduled start read `Unknown 10`. It now matches the state the charger reports. `CURRENT_STATE` gained a leading `Unknown 0` entry so that list positions match the charger's codes.
+- An immediate start after a finished session no longer fails with "Unknown reason". When `current_state` is `Completed` or `Completed Full Charge`, a start without a start time first sends the stop the charger requires and waits up to 5 seconds for it to leave that state. Scheduled starts, which the charger accepts in that state, send no stop.
+
+### Changed
+
+- While the charging current is unknown, the client asks for it again on every charger heartbeat, because the reply to the request sent at login can get lost.
+
 ## [0.4.9] - 2026-10-01
 
 ### Added
