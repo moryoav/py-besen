@@ -6,7 +6,7 @@ This project follows semantic versioning where practical. Release tags use a `v`
 
 Up to version 0.4.8, the library was developed in [moryoav/besen](https://github.com/moryoav/besen) together with the Home Assistant custom integration, and versions 0.2.0 to 0.2.2 were published as `besen-bs20`. Some earlier entries also describe integration changes. The integration's changelog continues in that repository.
 
-## [Unreleased]
+## [0.4.9] - 2026-10-01
 
 ### Added
 
@@ -18,6 +18,10 @@ Up to version 0.4.8, the library was developed in [moryoav/besen](https://github
 
 - The charger's "reservation successful" reply to a start request counts as acceptance. It was previously unmapped and would have raised `CommandFailed`.
 - A start request without the new arguments is unchanged: it starts now, with no time limit. Stopping, clock synchronization, and the state model are unchanged.
+
+### Updating
+
+- Existing calls behave as before. The new arguments follow the protocol as documented by [evsemaster](https://github.com/RafaelSchridi/evsemaster) and [emproto](https://github.com/johnwoo-nl/emproto), and have not been verified on a physical charger yet.
 
 ## [0.4.8.post1] - 2026-10-01
 
