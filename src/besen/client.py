@@ -64,6 +64,20 @@ StateListener = Callable[[BesenData], None]
 USER_ID = [101, 118, 115, 101, 77, 81, 84, 84, 0, 0, 0, 0, 0, 0, 0, 0]
 
 
+def _validate_start(start: datetime | None) -> None:
+    """Reject a scheduled start time the charger would not accept."""
+
+    if start is None:
+        return
+    if start.utcoffset() is None:
+        raise ValueError("The start time must be timezone-aware")
+    delay = start - datetime.now(UTC)
+    if delay <= timedelta(0):
+        raise ValueError("The start time must be in the future")
+    if delay > MAX_START_DELAY:
+        raise ValueError("The start time must be at most 24 hours ahead")
+
+
 class BesenClient:
     """Manage a Besen charger BLE connection."""
 
@@ -216,23 +230,19 @@ class BesenClient:
         minutes of charging.
         """
 
-        if start is not None:
-            if start.utcoffset() is None:
-                raise ValueError("The start time must be timezone-aware")
-            delay = start - datetime.now(UTC)
-            if delay <= timedelta(0):
-                raise ValueError("The start time must be in the future")
-            if delay > MAX_START_DELAY:
-                raise ValueError("The start time must be at most 24 hours ahead")
+        _validate_start(start)
         if duration_minutes is not None and not (
-            1 <= duration_minutes <= MAX_CHARGE_DURATION_MINUTES
+            isinstance(duration_minutes, int)
+            and 1 <= duration_minutes <= MAX_CHARGE_DURATION_MINUTES
         ):
             raise ValueError(
-                "The duration must be between 1 and "
-                f"{MAX_CHARGE_DURATION_MINUTES} minutes"
+                "The duration must be a whole number of minutes between 1 and "
+                f"{MAX_CHARGE_DURATION_MINUTES}"
             )
 
         async with self._charge_start_lock:
+            # An earlier request may have held the lock past the start time.
+            _validate_start(start)
             response: asyncio.Future[dict[str, Any] | None] = (
                 asyncio.get_running_loop().create_future()
             )

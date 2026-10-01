@@ -166,10 +166,18 @@ async def test_charge_start_schedule(
         (timedelta(hours=1), True, None, "timezone-aware"),
         (timedelta(seconds=-1), False, None, "in the future"),
         (timedelta(hours=24, minutes=1), False, None, "at most 24 hours ahead"),
-        (None, False, 0, "between 1 and 65534 minutes"),
-        (None, False, 65535, "between 1 and 65534 minutes"),
+        (None, False, 0, "whole number of minutes between 1 and 65534"),
+        (None, False, 65535, "whole number of minutes between 1 and 65534"),
+        (None, False, 1.5, "whole number of minutes between 1 and 65534"),
     ],
-    ids=["naive", "past", "too-far-ahead", "no-duration", "unlimited-duration"],
+    ids=[
+        "naive",
+        "past",
+        "too-far-ahead",
+        "no-duration",
+        "unlimited-duration",
+        "fractional-duration",
+    ],
 )
 async def test_charge_start_rejects_invalid_schedule(
     charging_client: tuple[BesenClient, _FakeBleakClient],
@@ -188,6 +196,25 @@ async def test_charge_start_rejects_invalid_schedule(
         await client.async_start_charging(
             16, start=start, duration_minutes=duration_minutes
         )
+    assert _written_commands(fake)[32775] == 0
+
+
+async def test_charge_start_rechecks_start_after_queueing(
+    charging_client: tuple[BesenClient, _FakeBleakClient],
+) -> None:
+    """A request queued behind another cannot send a start time that has passed."""
+
+    client, fake = charging_client
+    async with client._charge_start_lock:
+        request = asyncio.create_task(
+            client.async_start_charging(
+                16, start=datetime.now(UTC) + timedelta(seconds=0.05)
+            )
+        )
+        await asyncio.sleep(0.1)
+        assert not request.done()
+    with pytest.raises(ValueError, match="in the future"):
+        await request
     assert _written_commands(fake)[32775] == 0
 
 
