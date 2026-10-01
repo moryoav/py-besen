@@ -244,10 +244,13 @@ class BesenClient:
             )
 
         async with self._charge_start_lock:
-            if amps is None:
-                amps = await self._async_configured_charge_amps()
+            if self._stopping or not self._state.authenticated:
+                raise CommandFailed("Charger is not authenticated")
             if start is None:
                 await self._async_clear_finished_session()
+            # Read the current last, so a change made while waiting is kept.
+            if amps is None:
+                amps = await self._async_configured_charge_amps()
             # An earlier request may have held the lock past the start time.
             _validate_start(start)
             response: asyncio.Future[dict[str, Any] | None] = (

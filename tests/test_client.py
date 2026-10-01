@@ -295,6 +295,25 @@ async def test_charge_start_clears_finished_session(
     await request
 
 
+async def test_charge_start_uses_current_set_while_clearing(
+    charging_client: tuple[BesenClient, _FakeBleakClient],
+) -> None:
+    """A charging current changed while a finished session clears is kept."""
+
+    client, fake = charging_client
+    client._set_state(charge=client.state.charge.updated(current_state="Completed"))
+    request = asyncio.create_task(client.async_start_charging())
+    await _wait_for_write(fake, 32776)
+    client._set_state(
+        config=client.state.config.updated(charge_amps=10),
+        charge=client.state.charge.updated(current_state="Ready to charge"),
+    )
+    await _wait_for_write(fake, 32775)
+    assert parse_packet(fake.writes[-1][1]).data[46] == 10
+    await client._async_handle_packet(7, bytes([2, 0, 1, 0, 10]), EVSE_IDENTIFIER)
+    await request
+
+
 @pytest.mark.parametrize(
     ("state", "delay"),
     [
@@ -498,13 +517,18 @@ async def test_charge_start_abandons_session(
 async def test_charge_start_requires_authentication(
     charging_client: tuple[BesenClient, _FakeBleakClient],
 ) -> None:
-    """A request cannot be sent during login or shutdown."""
+    """Nothing is sent during login or shutdown, not even the preparing commands."""
 
     client, fake = charging_client
-    client._set_state(authenticated=False)
+    client._set_state(
+        authenticated=False,
+        config=client.state.config.updated(charge_amps=None),
+        charge=client.state.charge.updated(current_state="Completed"),
+    )
+    written = _written_commands(fake)
     with pytest.raises(CommandFailed, match="not authenticated"):
         await client.async_start_charging()
-    assert _written_commands(fake)[32775] == 0
+    assert _written_commands(fake) == written
 
 
 async def test_charge_start_timeout_before_write_preserves_connection(
