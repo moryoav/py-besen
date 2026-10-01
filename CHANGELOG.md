@@ -6,12 +6,17 @@ This project follows semantic versioning where practical. Release tags use a `v`
 
 Up to version 0.4.8, the library was developed in [moryoav/besen](https://github.com/moryoav/besen) together with the Home Assistant custom integration, and versions 0.2.0 to 0.2.2 were published as `besen-bs20`. Some earlier entries also describe integration changes. The integration's changelog continues in that repository.
 
-## [Unreleased]
+## [0.4.8.post1] - 2026-10-01
 
 ### Changed
 
 - Move the library, with its history, to its own repository at [moryoav/py-besen](https://github.com/moryoav/py-besen). Release tags now use `vX.Y.Z` instead of `library-vX.Y.Z`. The package name, import name, and public API are unchanged.
+- Point the PyPI project links to the new repository and use the library guide as the PyPI description.
 - Test on Python 3.12, 3.13, and 3.14.
+
+### Updating
+
+- This post-release changes only packaging metadata and documentation. The library code is identical to 0.4.8, so Home Assistant keeps requiring `besen==0.4.8`.
 
 ## [0.4.8] - 2026-09-30
 

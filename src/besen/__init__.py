@@ -21,7 +21,7 @@ from .models import (
     CommandResult,
 )
 
-__version__ = "0.4.8"
+__version__ = "0.4.8.post1"
 
 __all__ = [
     "BesenClient",
