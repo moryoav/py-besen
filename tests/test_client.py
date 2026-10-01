@@ -5,7 +5,9 @@ from __future__ import annotations
 import asyncio
 from collections import Counter
 from collections.abc import AsyncIterator, Callable
+from datetime import UTC, datetime, timedelta
 import logging
+import time
 from types import SimpleNamespace
 from typing import Any, cast
 
@@ -49,13 +51,19 @@ async def charging_client(
 
 
 async def _start_charging_request(
-    client: BesenClient, fake: _FakeBleakClient
+    client: BesenClient,
+    fake: _FakeBleakClient,
+    *,
+    start: datetime | None = None,
+    duration_minutes: int | None = None,
 ) -> asyncio.Task[None]:
     """Start a command and wait until it reaches the Bluetooth transport."""
 
     assert fake.write_started is not None
     fake.write_started.clear()
-    request = asyncio.create_task(client.async_start_charging(16))
+    request = asyncio.create_task(
+        client.async_start_charging(16, start=start, duration_minutes=duration_minutes)
+    )
     await asyncio.wait_for(fake.write_started.wait(), 1)
     return request
 
@@ -107,6 +115,80 @@ async def test_charge_start_rejection(
         await request
     assert client._charge_start_response is None
     assert client.is_connected
+
+
+@pytest.mark.parametrize(
+    ("delay", "duration_minutes", "reservation", "duration_bytes"),
+    [
+        (None, None, 0, b"\xff\xff"),
+        (timedelta(minutes=10), None, 1, b"\xff\xff"),
+        (None, 90, 0, b"\x00\x5a"),
+        (timedelta(hours=24), 65534, 1, b"\xff\xfe"),
+    ],
+    ids=["now", "scheduled", "time-limited", "scheduled-and-time-limited"],
+)
+async def test_charge_start_schedule(
+    charging_client: tuple[BesenClient, _FakeBleakClient],
+    delay: timedelta | None,
+    duration_minutes: int | None,
+    reservation: int,
+    duration_bytes: bytes,
+) -> None:
+    """A start time and a duration reach the charger, which confirms them."""
+
+    client, fake = charging_client
+    earliest = int(time.time())
+    start = None if delay is None else datetime.now(UTC) + delay
+    request = await _start_charging_request(
+        client, fake, start=start, duration_minutes=duration_minutes
+    )
+    payload = parse_packet(fake.writes[-1][1]).data
+    assert len(payload) == 47
+    assert payload[33] == reservation
+    sent = int.from_bytes(payload[34:38], "big")
+    if start is None:
+        assert earliest <= sent <= int(time.time())
+    else:
+        assert sent == int(start.timestamp())
+    assert payload[40:42] == duration_bytes
+    # The energy limit and the third parameter stay unlimited.
+    assert payload[42:46] == b"\xff" * 4
+    assert payload[46] == 16
+    await client._async_handle_packet(
+        7, bytes([2, reservation, int(start is None), 0, 16]), EVSE_IDENTIFIER
+    )
+    await request
+
+
+@pytest.mark.parametrize(
+    ("delay", "naive", "duration_minutes", "message"),
+    [
+        (timedelta(hours=1), True, None, "timezone-aware"),
+        (timedelta(seconds=-1), False, None, "in the future"),
+        (timedelta(hours=24, minutes=1), False, None, "at most 24 hours ahead"),
+        (None, False, 0, "between 1 and 65534 minutes"),
+        (None, False, 65535, "between 1 and 65534 minutes"),
+    ],
+    ids=["naive", "past", "too-far-ahead", "no-duration", "unlimited-duration"],
+)
+async def test_charge_start_rejects_invalid_schedule(
+    charging_client: tuple[BesenClient, _FakeBleakClient],
+    delay: timedelta | None,
+    naive: bool,
+    duration_minutes: int | None,
+    message: str,
+) -> None:
+    """An unusable start time or duration fails before anything is sent."""
+
+    client, fake = charging_client
+    start = None if delay is None else datetime.now(UTC) + delay
+    if start is not None and naive:
+        start = start.replace(tzinfo=None)
+    with pytest.raises(ValueError, match=message):
+        await client.async_start_charging(
+            16, start=start, duration_minutes=duration_minutes
+        )
+    assert _written_commands(fake)[32775] == 0
 
 
 async def test_charge_start_ignores_unrelated_replies(

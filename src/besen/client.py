@@ -7,6 +7,7 @@ import logging
 import time
 from collections.abc import Callable
 from contextlib import suppress
+from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
 from bleak.backends.device import BLEDevice
@@ -24,6 +25,8 @@ from .const import (
     LOGIN_ATTEMPTS,
     LOGIN_REQUEST_RETRY_INTERVAL,
     LOGIN_TIMEOUT,
+    MAX_CHARGE_DURATION_MINUTES,
+    MAX_START_DELAY,
     MESSAGE_TIMEOUT,
     MIN_CHARGE_AMPS,
     NEW_BOARD_READ_UUID,
@@ -199,14 +202,43 @@ class BesenClient:
             last_error=str(disconnect_error) if disconnect_error else None,
         )
 
-    async def async_start_charging(self, amps: int | None = None) -> None:
-        """Request charging and wait for the charger's acceptance or rejection."""
+    async def async_start_charging(
+        self,
+        amps: int | None = None,
+        *,
+        start: datetime | None = None,
+        duration_minutes: int | None = None,
+    ) -> None:
+        """Request charging and wait for the charger's acceptance or rejection.
+
+        A timezone-aware start time up to 24 hours ahead schedules the session
+        instead of starting it now. A duration ends the session after that many
+        minutes of charging.
+        """
+
+        if start is not None:
+            if start.utcoffset() is None:
+                raise ValueError("The start time must be timezone-aware")
+            delay = start - datetime.now(UTC)
+            if delay <= timedelta(0):
+                raise ValueError("The start time must be in the future")
+            if delay > MAX_START_DELAY:
+                raise ValueError("The start time must be at most 24 hours ahead")
+        if duration_minutes is not None and not (
+            1 <= duration_minutes <= MAX_CHARGE_DURATION_MINUTES
+        ):
+            raise ValueError(
+                "The duration must be between 1 and "
+                f"{MAX_CHARGE_DURATION_MINUTES} minutes"
+            )
 
         async with self._charge_start_lock:
             response: asyncio.Future[dict[str, Any] | None] = (
                 asyncio.get_running_loop().create_future()
             )
-            payload = self._charge_start_payload(self._clamp_amps(amps))
+            payload = self._charge_start_payload(
+                self._clamp_amps(amps), start, duration_minutes
+            )
             try:
                 async with asyncio.timeout(CHARGE_START_TIMEOUT):
                     await self._send_command(
@@ -231,8 +263,11 @@ class BesenClient:
 
             if values is None:
                 raise CommandFailed("Charger disconnected before confirming charging")
-            for key in ("error_reason", "reservation_result"):
-                if values[key] != "No error":
+            for key, accepted in (
+                ("error_reason", ("No error",)),
+                ("reservation_result", ("No error", "Reservation successful")),
+            ):
+                if values[key] not in accepted:
                     raise CommandFailed(f"Charger rejected charging: {values[key]}")
 
     def _end_charge_start(self) -> None:
@@ -885,7 +920,12 @@ class BesenClient:
                     self._schedule_reconnect()
                 raise CommandFailed(f"Failed to send {name}") from err
 
-    def _charge_start_payload(self, amps: int) -> list[Any]:
+    def _charge_start_payload(
+        self,
+        amps: int,
+        start: datetime | None = None,
+        duration_minutes: int | None = None,
+    ) -> list[Any]:
         """Build charge start payload."""
 
         line_id = 2 if self._state.info.phases == 3 else 1
@@ -893,11 +933,17 @@ class BesenClient:
             line_id,
             USER_ID,
             generate_charge_id(),
-            0,
-            timestamp_bytes(),
+            # The firmware calls a scheduled start a "reservation".
+            0 if start is None else 1,
+            # Same format as the clock sync, so the charger compares like with like.
+            timestamp_bytes(start),
             1,
             1,
-            [255, 255],
+            (
+                [255, 255]
+                if duration_minutes is None
+                else list(duration_minutes.to_bytes(2, byteorder="big"))
+            ),
             [255, 255],
             [255, 255],
             amps,

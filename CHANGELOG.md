@@ -6,6 +6,19 @@ This project follows semantic versioning where practical. Release tags use a `v`
 
 Up to version 0.4.8, the library was developed in [moryoav/besen](https://github.com/moryoav/besen) together with the Home Assistant custom integration, and versions 0.2.0 to 0.2.2 were published as `besen-bs20`. Some earlier entries also describe integration changes. The integration's changelog continues in that repository.
 
+## [Unreleased]
+
+### Added
+
+- Scheduled and time-limited charging. `async_start_charging()` accepts two new keyword arguments: a timezone-aware `start` up to 24 hours ahead makes the charger wait until then before charging, and `duration_minutes` (1 to 65534) makes it end the session after that many minutes of charging. The firmware calls a scheduled start a reservation. The charger reports an accepted schedule back as the `ChargeStatus` fields `scheduled_start` and `charging_time_limit`.
+- An invalid start time or duration raises `ValueError` before anything is sent to the charger. The limits are available as `besen.const.MAX_START_DELAY` and `besen.const.MAX_CHARGE_DURATION_MINUTES`.
+- `timestamp_bytes()` and `shanghai_adjusted_timestamp()` accept an optional timezone-aware `datetime` and still default to the current time.
+
+### Changed
+
+- The charger's "reservation successful" reply to a start request counts as acceptance. It was previously unmapped and would have raised `CommandFailed`.
+- A start request without the new arguments is unchanged: it starts now, with no time limit. Stopping, clock synchronization, and the state model are unchanged.
+
 ## [0.4.8.post1] - 2026-10-01
 
 ### Changed

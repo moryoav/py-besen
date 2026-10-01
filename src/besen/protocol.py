@@ -211,18 +211,19 @@ def safe_decode(value: bytes | bytearray) -> str:
     return bytes(value).strip(b"\x00").decode("utf-8", errors="replace").strip()
 
 
-def shanghai_adjusted_timestamp() -> int:
-    """Return the timestamp format expected by the charger."""
+def shanghai_adjusted_timestamp(value: datetime | None = None) -> int:
+    """Return a time, by default now, in the format expected by the charger."""
 
-    shanghai_time = datetime.now(timezone(timedelta(hours=8)))
-    local_time = shanghai_time.astimezone()
+    if value is None:
+        value = datetime.now(timezone(timedelta(hours=8)))
+    local_time = value.astimezone()
     return int(local_time.timestamp())
 
 
-def timestamp_bytes() -> list[int]:
-    """Return current timestamp as command bytes."""
+def timestamp_bytes(value: datetime | None = None) -> list[int]:
+    """Return a timestamp, by default the current one, as command bytes."""
 
-    return list(shanghai_adjusted_timestamp().to_bytes(4, byteorder="big"))
+    return list(shanghai_adjusted_timestamp(value).to_bytes(4, byteorder="big"))
 
 
 def bytes_to_timestamp(value: int) -> str:

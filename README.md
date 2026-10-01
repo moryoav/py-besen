@@ -125,7 +125,7 @@ connectable path is available.
 These methods can change the charger or operate real charging hardware. Test them
 manually with appropriate supervision before using them in an automation.
 
-- `await client.async_start_charging(amps=None)`
+- `await client.async_start_charging(amps=None, *, start=None, duration_minutes=None)`
 - `await client.async_stop_charging()`
 - `await client.async_set_charge_amps(amps)`
 - `await client.async_refresh_charge_amps()`
@@ -134,6 +134,34 @@ manually with appropriate supervision before using them in an automation.
 - `await client.async_set_language(language)`
 - `await client.async_set_device_name(name)`
 - `await client.async_refresh_config()`
+
+### Scheduled and time-limited charging
+
+`async_start_charging()` starts a session immediately and without a time limit
+unless you pass one of these keyword arguments:
+
+- `start`: a timezone-aware `datetime` up to 24 hours ahead. The charger waits
+  until then before it starts charging. The firmware calls this a reservation.
+- `duration_minutes`: an integer from 1 to 65534. The charger ends the session
+  after that many minutes of charging.
+
+```python
+from datetime import UTC, datetime, timedelta
+
+await client.async_start_charging(
+    amps=16,
+    start=datetime.now(UTC) + timedelta(hours=2),
+    duration_minutes=90,
+)
+```
+
+An invalid start time or duration raises `ValueError` before anything is sent.
+The charger reports an accepted schedule back as
+`BesenData.charge.scheduled_start` and `BesenData.charge.charging_time_limit`.
+
+The charger measures the start time against its own clock. The client sets that
+clock on every login and at most once an hour afterwards, so keep
+`sync_clock=True` when you schedule sessions.
 
 ## State model
 
@@ -190,8 +218,9 @@ All library-specific errors inherit from `BesenError`.
 
 `async_start_charging()` waits up to 10 seconds for the charger response, including
 the Bluetooth write. A response with a charging or reservation error raises
-`CommandFailed`. A successful response confirms the request, while actual charging
-state continues to arrive through notifications.
+`CommandFailed`, for example when the charger is already charging or already holds
+a scheduled start. A successful response confirms the request, while actual
+charging state continues to arrive through notifications.
 
 If the response times out, the charging outcome is unknown. The client disconnects
 and reconnects without automatically sending another start request. Cancellation
