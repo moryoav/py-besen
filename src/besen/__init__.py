@@ -19,6 +19,7 @@ from .models import (
     ChargerInfo,
     ChargeStatus,
     CommandResult,
+    SessionRecord,
 )
 from .udp import BesenUdpClient, BesenUdpHub
 
@@ -41,4 +42,5 @@ __all__ = [
     "InvalidAuth",
     "NoConnectablePath",
     "ProtocolError",
+    "SessionRecord",
 ]

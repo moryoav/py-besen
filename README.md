@@ -303,6 +303,8 @@ Important fields:
 - `BesenData.charge`: live charging state such as voltage, current, energy,
   temperature, plug state, output state, and charger status.
 - `BesenData.last_command`: last parsed command response.
+- `BesenData.last_session`: the record of the most recently ended session, or
+  `None` until one ends while connected. See below.
 - `BesenData.last_error`: last connection, protocol, or command error string.
 
 Important telemetry fields:
@@ -317,6 +319,10 @@ Important telemetry fields:
 - `BesenData.charge.scheduled_start`: the requested start time as a timezone-aware
   UTC datetime, or `None` when unset or no reservation/session is active. The
   firmware calls this a reservation.
+- `BesenData.charge.session_id` and `session_started_by`: the charger's ID for
+  the current or most recent session and who started it, or `None` when unset.
+  Sessions started by this library carry `evseMQTT`; sessions started with the
+  charger's button carry `Key`.
 - `BesenData.charge.session_duration`: elapsed session time in seconds.
 - `BesenData.charge.session_current_limit`: current limit recorded for the session
   in amperes, or `None` when unset.
@@ -329,6 +335,16 @@ Important telemetry fields:
   volts. L2 and L3 are populated only when the charger sends three-phase data.
 - `BesenData.charge.l1_amperage`, `l2_amperage`, and `l3_amperage`: phase currents
   in amperes. L2 and L3 are populated only when the charger sends three-phase data.
+
+When a session ends, the charger sends a summary of it, which the client stores
+as `BesenData.last_session`:
+
+- `session_id`, `started_by`, and `stopped_by`: the session ID and who started and
+  stopped it, with the same names as `session_started_by`.
+- `stop_reason_code` and `stop_reason`: why the session ended, as the charger's
+  code and its `besen.const.STOP_REASON` text. Code 24, `Key end`, means the
+  button; code 11, `App stop`, means a stop command such as
+  `async_stop_charging()`.
 
 ## Exceptions
 

@@ -408,6 +408,8 @@ def parse_single_ac_charging_status(data: bytes, _identifier: str) -> dict[str, 
     current_limit = byte_to_integer(data[46])
     charging_time_limit = bytes_to_integer(data[20:22])
     return {
+        "session_id": _optional_text(data[2:18]),
+        "session_started_by": _optional_text(data[30:46]),
         "session_energy": round(bytes_to_integer(data[63:67]) * 0.01, 2),
         "session_start": _parse_session_timestamp(data[47:51]),
         "session_duration": None if duration == 0xFFFFFFFF else duration,
@@ -418,6 +420,32 @@ def parse_single_ac_charging_status(data: bytes, _identifier: str) -> dict[str, 
         "charging_time_limit": (
             None if charging_time_limit in {0, 0xFFFF} else charging_time_limit
         ),
+    }
+
+
+def _optional_text(data: bytes) -> str | None:
+    """Decode a padded text field, or return None when it is unset."""
+
+    if all(byte == 0xFF for byte in data):
+        return None
+    return safe_decode(data) or None
+
+
+def parse_session_record(data: bytes, _identifier: str) -> dict[str, Any]:
+    """Parse the record the charger sends when a charging session ends."""
+
+    if len(data) < 59:
+        raise ProtocolError("Session record payload is shorter than 59 bytes")
+    # The charger sends this record (0x0009) a few times right after a session
+    # ends. It names who started and who stopped the session: the library's
+    # own commands carry USER_ID, while the charger's button appears as "Key".
+    reason = byte_to_integer(data[58])
+    return {
+        "session_id": _optional_text(data[33:49]),
+        "started_by": _optional_text(data[1:17]),
+        "stopped_by": _optional_text(data[17:33]),
+        "stop_reason_code": reason,
+        "stop_reason": STOP_REASON.get(reason, f"Unknown {reason}"),
     }
 
 
@@ -513,6 +541,7 @@ PARSERS = {
     6: parse_single_ac_charging_status,
     7: parse_charge_start,
     8: parse_charge_stop,
+    9: parse_session_record,
     13: parse_single_ac_status,
     257: parse_system_time,
     262: parse_version,

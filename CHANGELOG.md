@@ -8,6 +8,11 @@ Up to version 0.4.8, the library was developed in [moryoav/besen](https://github
 
 ## [Unreleased]
 
+### Added
+
+- Who started a session, and who stopped it. `ChargeStatus` gained `session_id` and `session_started_by`, read from the live and completed session reports. A session this library starts carries its own user ID (`evseMQTT`), and a session started with the charger's button carries `Key`.
+- The record the charger sends when a session ends (command `0x0009`) is now parsed into `BesenData.last_session`, a `SessionRecord` with the session ID, `started_by`, `stopped_by`, and the stop reason as a code and as text from `STOP_REASON`. For example, a session stopped with the button ends with code 24, `Key end`, and one stopped with `async_stop_charging()` ends with code 11, `App stop`. The charger repeats the record a few times, and listeners are notified once.
+
 ## [0.6.1] - 2026-10-18
 
 ### Fixed

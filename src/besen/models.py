@@ -97,6 +97,9 @@ class ChargeStatus:
     charging_status: str | None = None
     charging_status_description: str | None = None
     charger_status: bool | None = None
+    session_id: str | None = None
+    # USER_ID for sessions this library starts, "Key" for the charger's button.
+    session_started_by: str | None = None
     session_start: datetime | None = None
     session_duration: int | None = None  # Seconds reported by the charger.
     session_current_limit: int | None = None  # Amperes for this session.
@@ -107,6 +110,17 @@ class ChargeStatus:
         """Return a copy with changed fields."""
 
         return replace(self, **changes)
+
+
+@dataclass(slots=True, frozen=True)
+class SessionRecord:
+    """Summary the charger reports when a charging session ends."""
+
+    session_id: str | None = None
+    started_by: str | None = None
+    stopped_by: str | None = None
+    stop_reason_code: int | None = None
+    stop_reason: str | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -127,6 +141,7 @@ class BesenData:
     available: bool = False
     authenticated: bool = False
     last_command: CommandResult | None = None
+    last_session: SessionRecord | None = None
     last_error: str | None = None
     # Explicit PIN rejection, distinct from an incomplete login or BLE outage.
     auth_failed: bool = False

@@ -48,6 +48,7 @@ from .models import (
     CharacteristicPair,
     ChargerInfo,
     CommandResult,
+    SessionRecord,
 )
 from .protocol import (
     PARSERS,
@@ -929,6 +930,13 @@ class BesenClient:
                 )
             ):
                 response.set_result(values)
+            return
+
+        if command == 9:
+            record = SessionRecord(**values)
+            # The charger repeats the record a few times; report it once.
+            if record != self._state.last_session:
+                self._set_state(last_session=record)
             return
 
         if command == 8:
