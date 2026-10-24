@@ -8,6 +8,10 @@ Up to version 0.4.8, the library was developed in [moryoav/besen](https://github
 
 ## [Unreleased]
 
+### Added
+
+- `async_start_charging()` accepts `as_button=True` to start a session the way the charger's own button starts one: with the user ID `Key`, a charge ID of `Key`, three spaces, and the Unix time, and start type 5 instead of 1. The charger's button stops only sessions that the button started, so before this a press of the button did nothing to a session the library started. `async_stop_charging()` stops either kind. A scheduled start cannot be made as the button and raises `ValueError`. Without the new argument, starts are unchanged.
+
 ## [0.6.1] - 2026-10-18
 
 ### Fixed

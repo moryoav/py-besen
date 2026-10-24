@@ -18,6 +18,7 @@ from besen.protocol import (
     bytes_to_timezoned_epoch,
     charging_status,
     device_name_bytes,
+    generate_button_charge_id,
     generate_charge_id,
     get_phases,
     key_by_value,
@@ -306,6 +307,10 @@ def test_protocol_scalar_helpers() -> None:
         datetime(2026, 10, 1, 20, tzinfo=timezone(timedelta(hours=8)))
     ) == [106, 190, 75, 64]
     assert len(generate_charge_id()) == 16
+    button_id = bytes(generate_button_charge_id()).decode("ascii")
+    assert len(button_id) == 16
+    assert button_id[:6] == "Key   "
+    assert button_id[6:].isdigit()
     assert bytes_to_timestamp(0)
     assert isinstance(bytes_to_timezoned_epoch(0), int)
 

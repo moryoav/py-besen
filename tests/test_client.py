@@ -353,13 +353,16 @@ async def _start_charging_request(
     *,
     start: datetime | None = None,
     duration_minutes: int | None = None,
+    as_button: bool = False,
 ) -> asyncio.Task[None]:
     """Start a command and wait until it reaches the Bluetooth transport."""
 
     assert fake.write_started is not None
     fake.write_started.clear()
     request = asyncio.create_task(
-        client.async_start_charging(16, start=start, duration_minutes=duration_minutes)
+        client.async_start_charging(
+            16, start=start, duration_minutes=duration_minutes, as_button=as_button
+        )
     )
     await asyncio.wait_for(fake.write_started.wait(), 1)
     return request
@@ -455,6 +458,56 @@ async def test_charge_start_schedule(
         7, bytes([2, reservation, int(start is None), 0, 16]), EVSE_IDENTIFIER
     )
     await request
+
+
+@pytest.mark.parametrize("duration_minutes", [None, 90])
+@pytest.mark.parametrize("as_button", [False, True])
+async def test_charge_start_identity(
+    charging_client: tuple[BesenClient, _FakeBleakClient],
+    duration_minutes: int | None,
+    as_button: bool,
+) -> None:
+    """A start as the button carries the button's user, charge ID, and start type."""
+
+    client, fake = charging_client
+    earliest = int(time.time())
+    request = await _start_charging_request(
+        client, fake, duration_minutes=duration_minutes, as_button=as_button
+    )
+    payload = parse_packet(fake.writes[-1][1]).data
+    assert len(payload) == 47
+    if as_button:
+        # As captured from a session started with a BS20's button.
+        assert payload[1:17] == b"Key" + b" " * 13
+        charge_id = payload[17:33].decode("ascii")
+        assert charge_id.startswith("Key   ")
+        assert earliest <= int(charge_id[6:]) <= int(time.time())
+        assert payload[38] == 5
+    else:
+        assert payload[1:17] == b"evseMQTT" + b"\x00" * 8
+        assert payload[29:33] == b"1337"
+        assert payload[38] == 1
+    assert payload[33] == 0
+    assert payload[39] == 1
+    assert payload[40:42] == (
+        b"\xff\xff" if duration_minutes is None else duration_minutes.to_bytes(2, "big")
+    )
+    assert payload[46] == 16
+    await client._async_handle_packet(7, bytes([2, 0, 1, 0, 16]), EVSE_IDENTIFIER)
+    await request
+
+
+async def test_charge_start_as_button_cannot_be_scheduled(
+    charging_client: tuple[BesenClient, _FakeBleakClient],
+) -> None:
+    """The button only starts sessions now, so a scheduled start is refused."""
+
+    client, fake = charging_client
+    with pytest.raises(ValueError, match="cannot be made as the button"):
+        await client.async_start_charging(
+            16, start=datetime.now(UTC) + timedelta(hours=1), as_button=True
+        )
+    assert _written_commands(fake)[32775] == 0
 
 
 @pytest.mark.parametrize(

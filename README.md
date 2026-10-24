@@ -137,7 +137,7 @@ protocol codes and start/stop commands are unchanged.
 These methods can change the charger or operate real charging hardware. Test them
 manually with appropriate supervision before using them in an automation.
 
-- `await client.async_start_charging(amps=None, *, start=None, duration_minutes=None)`
+- `await client.async_start_charging(amps=None, *, start=None, duration_minutes=None, as_button=False)`
 - `await client.async_stop_charging()`
 - `await client.async_set_charge_amps(amps)`
 - `await client.async_refresh_charge_amps()`
@@ -185,6 +185,22 @@ clock on every login and at most once an hour afterwards, so keep
 On a Besen BS20 the charger holds one schedule at a time and accepts it with or
 without a vehicle connected. It rejects a new start while a schedule is pending
 or a session is charging, and `async_stop_charging()` cancels a pending schedule.
+
+### Starting as the charger's button
+
+The charger records who started each session, and its physical button stops only
+sessions that the button started. A session started by this library carries the
+library's own user ID, so on a Besen BS20 a press of the button does nothing to
+it: the charger ignores the press and sends nothing over Bluetooth.
+
+Pass `as_button=True` to start the session the way the button does, with the
+button's user ID, charge ID format, and start type. The button can then stop it,
+and `async_stop_charging()` still can too. A scheduled start cannot be made as the
+button and raises `ValueError`.
+
+```python
+await client.async_start_charging(amps=16, as_button=True)
+```
 
 ### Charging current and finished sessions
 

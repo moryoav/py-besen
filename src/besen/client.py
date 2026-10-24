@@ -54,6 +54,7 @@ from .protocol import (
     PacketAssembler,
     build_command,
     device_name_bytes,
+    generate_button_charge_id,
     generate_charge_id,
     timestamp_bytes,
 )
@@ -64,6 +65,10 @@ StateListener = Callable[[BesenData], None]
 
 USER_ID = [101, 118, 115, 101, 77, 81, 84, 84, 0, 0, 0, 0, 0, 0, 0, 0]
 WIFI_SETUP_TIMEOUT = 10.0
+# How the charger's own button identifies itself when it starts a session.
+BUTTON_USER_ID = list(b"Key".ljust(16, b" "))
+APP_START_TYPE = 1
+BUTTON_START_TYPE = 5
 
 # The charger rejects an immediate start in these states until it gets a stop.
 FINISHED_STATES = ("Completed", "Completed Full Charge")
@@ -244,14 +249,18 @@ class BesenClient:
         *,
         start: datetime | None = None,
         duration_minutes: int | None = None,
+        as_button: bool = False,
     ) -> None:
         """Request charging and wait for the charger's acceptance or rejection.
 
         A timezone-aware start time up to 24 hours ahead schedules the session
         instead of starting it now. A duration ends the session after that many
-        minutes of charging.
+        minutes of charging. With ``as_button``, the session is started the way
+        the charger's own button starts one, so that the button can stop it.
         """
 
+        if as_button and start is not None:
+            raise ValueError("A scheduled start cannot be made as the button")
         _validate_start(start)
         if duration_minutes is not None and not (
             isinstance(duration_minutes, int)
@@ -276,7 +285,7 @@ class BesenClient:
                 asyncio.get_running_loop().create_future()
             )
             payload = self._charge_start_payload(
-                self._clamp_amps(amps), start, duration_minutes
+                self._clamp_amps(amps), start, duration_minutes, as_button=as_button
             )
             try:
                 async with asyncio.timeout(CHARGE_START_TIMEOUT):
@@ -1050,19 +1059,23 @@ class BesenClient:
         amps: int,
         start: datetime | None = None,
         duration_minutes: int | None = None,
+        *,
+        as_button: bool = False,
     ) -> list[Any]:
         """Build charge start payload."""
 
         line_id = 2 if self._state.info.phases == 3 else 1
+        # The charger records who started a session, and its button stops only
+        # sessions that the button started.
         return [
             line_id,
-            USER_ID,
-            generate_charge_id(),
+            BUTTON_USER_ID if as_button else USER_ID,
+            generate_button_charge_id() if as_button else generate_charge_id(),
             # The firmware calls a scheduled start a "reservation".
             0 if start is None else 1,
             # Same format as the clock sync, so the charger compares like with like.
             timestamp_bytes(start),
-            1,
+            BUTTON_START_TYPE if as_button else APP_START_TYPE,
             1,
             (
                 [255, 255]

@@ -7,6 +7,7 @@ evseMQTT project by slespersen and contributors.
 from __future__ import annotations
 
 import struct
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, timezone
@@ -261,6 +262,13 @@ def generate_charge_id() -> list[int]:
         "ascii"
     )
     return list(encoded.ljust(16, b"\x00"))
+
+
+def generate_button_charge_id() -> list[int]:
+    """Generate the charge ID the charger's own button gives a session."""
+
+    # "Key", three spaces, and the Unix time, as captured from a BS20.
+    return list(f"Key   {int(time.time())}".encode("ascii").ljust(16, b" "))
 
 
 def convert_temperature(temp_c: float) -> float:
