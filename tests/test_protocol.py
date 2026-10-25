@@ -255,6 +255,8 @@ def test_parse_single_ac_charging_status(command: int) -> None:
     status = PARSERS[command](bytes(data), "12345678")
 
     assert status == {
+        "session_id": None,
+        "session_started_by": None,
         "session_energy": 4.56,
         "session_start": None,
         "session_duration": 0,
@@ -268,6 +270,8 @@ def test_parse_single_ac_charging_status_handles_zero_and_short_payload() -> Non
     """Charging status parser preserves zero and rejects incomplete payloads."""
 
     assert parse_single_ac_charging_status(bytes(74), "12345678") == {
+        "session_id": None,
+        "session_started_by": None,
         "session_energy": 0.0,
         "session_start": None,
         "session_duration": 0,

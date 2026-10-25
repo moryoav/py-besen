@@ -102,11 +102,31 @@ class ChargeStatus:
     session_current_limit: int | None = None  # Amperes for this session.
     scheduled_start: datetime | None = None
     charging_time_limit: int | None = None  # Minutes; None means unset/unlimited.
+    session_id: str | None = None
+    session_started_by: str | None = None
 
     def updated(self, **changes: Any) -> ChargeStatus:
         """Return a copy with changed fields."""
 
         return replace(self, **changes)
+
+
+@dataclass(slots=True, frozen=True, kw_only=True)
+class SessionRecord:
+    """An observed session end, including the charger's reported identities.
+
+    Identities are protocol values, not necessarily people or physical actions.
+    Times distinguish sessions whose firmware-generated identifiers are reused.
+    """
+
+    session_id: str | None = None
+    started_by: str | None = None
+    stopped_by: str | None = None
+    started_at: datetime | None = None
+    ended_at: datetime | None = None
+    stop_reason_code: int | None = None
+    stop_reason: str | None = None
+    line_id: int | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -130,6 +150,7 @@ class BesenData:
     last_error: str | None = None
     # Explicit PIN rejection, distinct from an incomplete login or BLE outage.
     auth_failed: bool = False
+    last_session: SessionRecord | None = None
 
     def updated(self, **changes: Any) -> BesenData:
         """Return a copy with changed fields."""

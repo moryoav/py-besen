@@ -303,9 +303,14 @@ Important fields:
 - `BesenData.charge`: live charging state such as voltage, current, energy,
   temperature, plug state, output state, and charger status.
 - `BesenData.last_command`: last parsed command response.
+- `BesenData.last_session`: the last observed session end as a `SessionRecord`,
+  or `None` before an end record is received. See session metadata below.
 - `BesenData.last_error`: last connection, protocol, or command error string.
 
 Important telemetry fields:
+
+- `BesenData.charge.session_id` and `session_started_by`: the session identifier
+  and starter reported in live/completed session messages, or `None` when unset.
 
 - `BesenData.charge.power`: charger-reported charging power in watts.
 - `BesenData.charge.total_energy`: lifetime energy counter in kWh.
@@ -329,6 +334,38 @@ Important telemetry fields:
   volts. L2 and L3 are populated only when the charger sends three-phase data.
 - `BesenData.charge.l1_amperage`, `l2_amperage`, and `l3_amperage`: phase currents
   in amperes. L2 and L3 are populated only when the charger sends three-phase data.
+
+### Session metadata
+
+The client reads end records (`0x0009`) without sending additional commands.
+`BesenData.last_session` contains the reported `session_id`, `started_by`,
+`stopped_by`, `line_id`, `started_at`, `ended_at`, `stop_reason_code` and
+`stop_reason`. Times are timezone-aware UTC datetimes using the same epoch
+interpretation as existing session telemetry. Zero/all-ones times and padded,
+unset identifiers become `None`. Unknown reason codes remain available, with
+text such as `Unknown 99`.
+
+These are firmware-reported identities, not names of people. `Key` is a button
+identity and `evseMQTT` is the library identity; an identity alone does not prove
+which physical action occurred. Stop reasons include code 11 (software stop),
+13 (vehicle finished), 17 (cable removed) and 24 (button stop), as defined by the
+existing `STOP_REASON` table.
+
+Repeated copies are filtered using a bounded cache of 16 records. Start/end
+times participate in record identity because session IDs can repeat within a
+minute. This also ignores interleaved retransmissions. Records shorter than the
+72-byte identity/timing prefix are ignored as malformed; trailing fields are
+not required. Existing energy, duration and schedule values are not overwritten
+from this record.
+
+This is the last end observed by this client, not persisted charging history.
+It remains cached across reconnections of the same client, but a new client
+starts with `None`. Stops missed while disconnected are not recovered; history
+replay (`0x000A`) is intentionally outside this API. The implementation and
+tests were developed independently from the current main branch, using the
+EVSEMaster 3.1.38 app's `currentChargeRecord` layout and the
+[protocol documentation](https://github.com/RafaelSchridi/evsemaster/blob/main/docs/protocol.md#charge-record-0x0009-0x000a-and-0x000c-from-byte-9).
+Tests use synthetic data; physical validation of this implementation is pending.
 
 ## Exceptions
 
