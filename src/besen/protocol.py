@@ -418,6 +418,37 @@ def parse_single_ac_charging_status(data: bytes, _identifier: str) -> dict[str, 
         "charging_time_limit": (
             None if charging_time_limit in {0, 0xFFFF} else charging_time_limit
         ),
+        "session_id": _parse_session_text(data[2:18]),
+        "session_started_by": _parse_session_text(data[30:46]),
+    }
+
+
+def _parse_session_text(data: bytes) -> str | None:
+    """Read identifiers padded with spaces, zero bytes, or unset bytes."""
+
+    return safe_decode(data.strip(b"\x00\xff ")) or None
+
+
+def parse_session_record(data: bytes, _identifier: str) -> dict[str, Any]:
+    """Read the identity, reason and times from a session end (0x0009).
+
+    The 72-byte prefix includes the stop time. Requiring it prevents a partial
+    record from losing the timestamps needed to distinguish reused session IDs.
+    Remaining energy, fee and log fields are outside this metadata API.
+    """
+
+    if len(data) < 72:
+        raise ProtocolError("Session record payload is shorter than 72 bytes")
+    reason = data[58]
+    return {
+        "line_id": data[0],
+        "session_id": _parse_session_text(data[33:49]),
+        "started_by": _parse_session_text(data[1:17]),
+        "stopped_by": _parse_session_text(data[17:33]),
+        "started_at": _parse_session_timestamp(data[64:68]),
+        "ended_at": _parse_session_timestamp(data[68:72]),
+        "stop_reason_code": reason,
+        "stop_reason": STOP_REASON.get(reason, f"Unknown {reason}"),
     }
 
 
@@ -513,6 +544,7 @@ PARSERS = {
     6: parse_single_ac_charging_status,
     7: parse_charge_start,
     8: parse_charge_stop,
+    9: parse_session_record,
     13: parse_single_ac_status,
     257: parse_system_time,
     262: parse_version,

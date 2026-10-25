@@ -8,6 +8,11 @@ Up to version 0.4.8, the library was developed in [moryoav/besen](https://github
 
 ## [Unreleased]
 
+### Added
+
+- Expose the reported session ID and starter in live and completed session reports, and an immutable `SessionRecord` in `BesenData.last_session` when a session end is observed. Include the reported starter, stopper, reason code, reason text, connector and start/end times.
+- Filter repeated session records with a bounded cache while keeping distinct sessions with reused IDs and different times. Keep unknown reason codes and reject truncated records without changing existing telemetry or sending new commands.
+
 ## [0.6.1] - 2026-10-18
 
 ### Fixed

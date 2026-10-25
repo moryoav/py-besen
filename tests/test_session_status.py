@@ -33,6 +33,8 @@ def test_session_report_fields(command: int, extra_bytes: int) -> None:
     values = PARSERS[packet.command](packet.data, packet.identifier)
 
     assert values == {
+        "session_id": None,
+        "session_started_by": None,
         "session_energy": 4.56,
         "session_start": datetime(2026, 9, 18, 17, tzinfo=UTC),
         "session_duration": 3661,

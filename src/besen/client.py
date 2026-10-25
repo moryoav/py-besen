@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 import logging
 import time
 from collections.abc import Callable
@@ -48,6 +49,7 @@ from .models import (
     CharacteristicPair,
     ChargerInfo,
     CommandResult,
+    SessionRecord,
 )
 from .protocol import (
     PARSERS,
@@ -141,6 +143,8 @@ class BesenClient:
         self._schedule_values: tuple[datetime | None, int | None] = (None, None)
         self._schedule_session: tuple[bytes, datetime | None] | None = None
         self._ended_schedule_sessions: set[tuple[bytes, datetime | None]] = set()
+        # A bounded cache also ignores interleaved retransmissions (A, B, A).
+        self._session_records: deque[SessionRecord] = deque(maxlen=16)
         self._state = BesenData(
             info=ChargerInfo(address=address, advertised_name=advertised_name)
         )
@@ -929,6 +933,13 @@ class BesenClient:
                 )
             ):
                 response.set_result(values)
+            return
+
+        if command == 9:
+            record = SessionRecord(**values)
+            if record not in self._session_records:
+                self._session_records.append(record)
+                self._set_state(last_session=record)
             return
 
         if command == 8:

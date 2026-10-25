@@ -124,6 +124,33 @@ async def test_live_udp_login_and_charge_acknowledgement(
         await client.async_set_charge_amps(10)
 
 
+async def test_udp_session_record_push(
+    lan: tuple[BesenUdpHub, BesenUdpClient, Charger],
+) -> None:
+    """Session metadata reaches listeners through the existing LAN route."""
+
+    hub, client, charger = lan
+    await client.async_start()
+    await client.async_wait_for_status()
+    assert hub.transport is not None
+    destination = hub.transport.get_extra_info("sockname")
+    payload = bytearray(95)
+    payload[0] = 1
+    payload[1:17] = b"client-A".ljust(16, b"\x00")
+    payload[17:33] = b"Key".ljust(16, b" ")
+    payload[33:49] = b"2026102512001337"
+    payload[58] = 24
+    payload[64:68] = (1_792_929_602).to_bytes(4, "big")
+    payload[68:72] = (1_792_929_608).to_bytes(4, "big")
+    received = asyncio.Event()
+    client.add_listener(lambda state: received.set() if state.last_session else None)
+    charger.transport.sendto(reply(9, bytes(payload)), destination)
+    await asyncio.wait_for(received.wait(), 1)
+    assert client.state.last_session is not None
+    assert client.state.last_session.stopped_by == "Key"
+    assert client.state.last_session.stop_reason_code == 24
+
+
 async def test_rejected_pin_is_distinct_from_timeout(
     lan: tuple[BesenUdpHub, BesenUdpClient, Charger],
 ) -> None:
